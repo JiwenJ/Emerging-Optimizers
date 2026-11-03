@@ -16,6 +16,7 @@ from typing import Literal
 
 import torch
 
+from emerging_optimizers import triton_kernels
 from emerging_optimizers.orthogonalized_optimizers.muon_utils import NSCoeffT, newton_schulz
 
 
@@ -134,9 +135,14 @@ def newton_schulz_retraction(
         :math:`\|Q^T Q - I_K\|_\infty \le \epsilon`.
     """
     matrix = point - step_size * momentum
+    use_syrk = (
+        matrix.is_cuda
+        and triton_kernels.HAS_TRITON_340  # type: ignore[attr-defined]
+        and torch.cuda.get_device_capability(matrix.device) in ((8, 0), (9, 0), (10, 0), (10, 3))
+    )
     return newton_schulz(
         matrix,
         steps=num_ns_steps,
         coefficient_type=coefficient_type,
-        use_syrk=matrix.is_cuda,
+        use_syrk=use_syrk,
     )
