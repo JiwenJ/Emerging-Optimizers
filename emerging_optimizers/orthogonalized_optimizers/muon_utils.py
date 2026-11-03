@@ -153,13 +153,13 @@ def get_coefficient_iterator(
 def distributed_normalize_p2(
     x: torch.Tensor, eps: float, group: torch.distributed.ProcessGroup, normalize_in_double: bool = False
 ) -> torch.Tensor:
-    """Normalize a tensor by its distributed Frobenius norm.
+    """Normalize each matrix (the last two dims) of a tensor by its distributed Frobenius norm.
 
     When ``normalize_in_double`` is set, the squared sum is accumulated in float64 so that tiny
     entries do not underflow to zero when squared in float32.
     """
     x_sq = x.double() if normalize_in_double else x
-    x_sq_sum = (x_sq * x_sq).sum()
+    x_sq_sum = (x_sq * x_sq).sum(dim=(-2, -1), keepdim=True)
     torch.distributed.all_reduce(x_sq_sum, op=torch.distributed.ReduceOp.SUM, group=group)
     norm = torch.sqrt(x_sq_sum).to(x.dtype)
     if not normalize_in_double:
@@ -326,7 +326,8 @@ def newton_schulz_tp(
         x: The tensor to be orthogonalized. Must has partition_dim and tensor_model_parallel set by TransformerEngine.
         steps: Number of Newton-Schulz iterations.
         coefficient_type: Type of coefficient set to use for the Newton-Schulz iteration.
-        partition_dim: The dimension to partition the tensor.
+        partition_dim: The matrix dimension the tensor is partitioned along, 0 for rows and 1 for columns. For a
+            batched ``(B, M, N)`` input it refers to the last two dims.
         tp_group: The process group for communication if input is distributed.
         tp_mode: The mode to use for the Newton-Schulz iteration.
         use_syrk: Whether to use the Triton SYRK kernel for the Newton-Schulz iteration. Forwarded to the
@@ -337,7 +338,7 @@ def newton_schulz_tp(
     if partition_dim is not None:
         if tp_mode not in ("duplicated", "distributed"):
             raise ValueError(f"Invalid tp_mode: {tp_mode}")
-        if tp_mode == "distributed" and partition_dim not in (0, 1):
+        if partition_dim not in (0, 1):
             raise ValueError(f"Invalid partition_dim: {partition_dim}")
 
     tp_size = get_pg_size(tp_group)
@@ -354,10 +355,10 @@ def newton_schulz_tp(
     if tp_mode == "duplicated":
         x_shards = [torch.empty_like(x) for _ in range(tp_size)]
         torch.distributed.all_gather(x_shards, x, tp_group)
-        global_x = torch.cat(x_shards, dim=partition_dim)
+        global_x = torch.cat(x_shards, dim=partition_dim - 2)
 
         orthogonalized_x = newton_schulz(global_x, tp_group=None, **kwargs)
-        output = orthogonalized_x.chunk(tp_size, dim=partition_dim)[tp_group.rank()]
+        output = orthogonalized_x.chunk(tp_size, dim=partition_dim - 2)[tp_group.rank()]
     else:
         output = newton_schulz(x, **kwargs, transpose=partition_dim == 0, tp_group=tp_group)
 
