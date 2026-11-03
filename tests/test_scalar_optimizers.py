@@ -585,6 +585,7 @@ class _CommonScalarOptimizerTests:
 
     OPTIMIZER_CLS: type
     STATE_KEYS: tuple[str, ...]
+    SCALAR_STATE_KEYS: tuple[str, ...] = ()
 
     def setUp(self) -> None:
         self.device = FLAGS.device
@@ -614,7 +615,8 @@ class _CommonScalarOptimizerTests:
         for key in self.STATE_KEYS:
             if key == "step":
                 continue
-            self.assertEqual(opt.state[param][key].shape, param.data.shape)
+            expected_shape = torch.Size([]) if key in self.SCALAR_STATE_KEYS else param.data.shape
+            self.assertEqual(opt.state[param][key].shape, expected_shape)
 
     def test_init_group_skip_non_grad_params(self) -> None:
         """``_init_group(..., skip_non_grad_params=...)`` honors the flag."""
@@ -902,7 +904,8 @@ class SimplifiedAdEMAMixOptimizerTest(
     _CommonScalarOptimizerTests, _HasBetasTests, _HasEpsTests, parameterized.TestCase
 ):
     OPTIMIZER_CLS = SimplifiedAdEMAMix
-    STATE_KEYS = ("exp_avg", "exp_avg_sq", "step")
+    STATE_KEYS = ("exp_avg", "exp_avg_sq", "num_sum", "step")
+    SCALAR_STATE_KEYS = ("num_sum",)
 
     def test_invalid_min_beta_fast_raises_value_error(self) -> None:
         param = torch.nn.Parameter(torch.randn(3, 3, device=self.device))
