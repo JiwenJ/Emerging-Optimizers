@@ -224,7 +224,7 @@ class AdaptiveMuon(OrthogonalizedOptimizer):
 
             # AdamW-style division: grad / (sqrt(moment2) + eps)
             denom = moment2.sqrt() + eps
-            return orth_grad / denom
+            return self._match_frobenius_norm(orth_grad / denom, orth_grad, eps)
 
         elif self.moment2_method == "normuon":
             # NorMuon: Row or column-wise second moment
