@@ -396,18 +396,18 @@ class SoapBase(optim.Optimizer, opt_mixin.WeightDecayMixin):
                     shampoo_beta = group["shampoo_beta"]
                     shampoo_beta = 1 - (1 - shampoo_beta) / (1 - shampoo_beta**curr_iter_1_based)
 
-                    preconditioner = self.PreconditionerCls(state, self.eps)
-                    if state["step"] == 0:
-                        preconditioner.init_step(grad, shampoo_beta)
-                    else:
-                        preconditioner.step(grad, shampoo_beta)
-
                     self._apply_weight_decay_inplace(
                         p,
                         grad,
                         group["lr"],
                         group["weight_decay"],
                     )
+
+                    preconditioner = self.PreconditionerCls(state, self.eps)
+                    if state["step"] == 0:
+                        preconditioner.init_step(grad, shampoo_beta)
+                    else:
+                        preconditioner.step(grad, shampoo_beta)
 
                     # No matmul in adam update, put it under matmul precision context to make code for code simplicity
                     with utils.fp32_matmul_precision("highest"):
