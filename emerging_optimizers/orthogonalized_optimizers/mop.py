@@ -93,12 +93,13 @@ def polar_via_svd(A: torch.Tensor, return_p: bool = False) -> tuple[torch.Tensor
 
     Returns:
         A tuple containing:
-            - The unitary part of the polar decomposition.
+            - The unitary part of the polar decomposition, restricted to the numerical range of ``A``.
             - The positive-semidefinite part of the polar decomposition, if return_p is True.
             - The singular values of the input tensor.
     """
     U_svd, S, Vh = torch.linalg.svd(A, full_matrices=False)
-    U_polar = U_svd @ Vh
+    rank_mask = S > S.amax(dim=-1, keepdim=True) * max(A.shape[-2:]) * torch.finfo(S.dtype).eps
+    U_polar = (U_svd * rank_mask.unsqueeze(-2)) @ Vh
 
     if not return_p:
         return U_polar, None, S
