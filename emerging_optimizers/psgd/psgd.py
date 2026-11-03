@@ -128,7 +128,7 @@ class PSGDPro(opt_mixin.WeightDecayMixin, torch.optim.Optimizer):
             for p in group["params"]:
                 if p.grad is None:
                     continue  # pragma: no cover
-                grad = p.grad
+                grad = p.grad.to(torch.float32)
                 state = self.state[p]
 
                 # Optimizer state initialization
@@ -172,7 +172,7 @@ class PSGDPro(opt_mixin.WeightDecayMixin, torch.optim.Optimizer):
                 _clip_update_rms_in_place(update, self.max_update_rms)
 
                 # Apply weight update
-                p.add_(update, alpha=-group["lr"])
+                p.add_(update.to(p.dtype), alpha=-group["lr"])
 
                 state["step"] += 1
 
@@ -198,8 +198,8 @@ def _init_psgd_kron_states(
 
     # Create identity matrices scaled by precond_init_scale for each dimension
     for size in grad.shape:
-        q_list.append(torch.eye(size, device=grad.device) * precond_init_scale)
-        lip_const_list.append(torch.ones((), device=grad.device))
+        q_list.append(torch.eye(size, dtype=grad.dtype, device=grad.device) * precond_init_scale)
+        lip_const_list.append(torch.ones((), dtype=grad.dtype, device=grad.device))
 
     return q_list, lip_const_list
 
