@@ -111,6 +111,7 @@ def calculate_sim_ademamix_update(
     grad: torch.Tensor,
     exp_avg: torch.Tensor,
     exp_avg_sq: torch.Tensor,
+    num_sum: torch.Tensor | None = None,
     *,
     betas: tuple[float, float],
     eps: float,
@@ -131,7 +132,8 @@ def calculate_sim_ademamix_update(
     .. math::
         m_t = \\beta_{\\text{fast}} m_{t-1} + g_t \\\\
         v_t = \\beta_2 v_{t-1} + (1 - \\beta_2) g_t^2 \\\\
-        \\hat{m}_t = \\frac{m_t}{(1 - \\beta_{\\text{fast}}^t) / (1 - \\beta_{\\text{fast}})} \\\\
+        S_t = \\beta_{\\text{fast}} S_{t-1} + 1, \\quad S_0 = 0 \\\\
+        \\hat{m}_t = \\frac{m_t}{S_t} \\\\
         \\hat{v}_t = \\frac{v_t}{1 - \\beta_2^t} \\\\
         \\text{update} = \\frac{\\alpha g_t + \\hat{m}_t}{\\sqrt{\\hat{v}_t} + \\epsilon}
 
@@ -139,6 +141,9 @@ def calculate_sim_ademamix_update(
         grad: The gradient tensor.
         exp_avg: The accumulated first moment of the gradient (modified in place).
         exp_avg_sq: The accumulated second moment of the gradient (modified in place).
+        num_sum: 0-d tensor holding the sum of the first-moment weights :math:`S_{t-1}` (modified in place).
+            ``None`` uses the closed form :math:`(1 - \\beta^t) / (1 - \\beta)`, which equals :math:`S_t` only
+            when ``beta_fast`` is constant.
         betas: The EMA beta coefficients ``(beta_fast_final, beta2)``.
         eps: Epsilon for the second-moment denominator.
         correct_bias: Whether to apply Adam-style bias correction.
@@ -162,13 +167,16 @@ def calculate_sim_ademamix_update(
 
     # Decay the first moment "theory style": https://arxiv.org/abs/2502.02431
     exp_avg.mul_(beta_fast).add_(grad, alpha=1.0)
+    if num_sum is not None:
+        num_sum.mul_(beta_fast).add_(1.0)
 
     # Decay the second moment exponential moving average
     exp_avg_sq.lerp_(grad.square(), 1 - beta2)
 
+    bias_correction1: torch.Tensor | float
     if correct_bias:
         # theory style bias correction
-        bias_correction1 = (1 - beta_fast**step) / (1 - beta_fast)
+        bias_correction1 = num_sum if num_sum is not None else (1 - beta_fast**step) / (1 - beta_fast)
         bias_correction2 = 1 - beta2**step
     else:
         bias_correction1 = 1

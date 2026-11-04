@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, override
+from typing import Any, ClassVar, override
 
 import torch
 from absl import logging
@@ -150,6 +150,8 @@ class LaProp(TwoMomentsOptimizer):
 class SimplifiedAdEMAMix(TwoMomentsOptimizer):
     """Simplified AdEMAMix: two-buffer variant mixing alpha-scaled current gradient into a theory-style first-moment EMA."""
 
+    state_keys: ClassVar[tuple[str, ...]] = ("exp_avg", "exp_avg_sq", "num_sum")
+
     def __init__(
         self,
         params: ParamsT,
@@ -192,3 +194,26 @@ class SimplifiedAdEMAMix(TwoMomentsOptimizer):
             ),
             weight_decay_method=weight_decay_method,
         )
+
+    @torch.no_grad()  # type: ignore[misc]
+    @override
+    def _init_group(
+        self,
+        group: dict,
+        skip_non_grad_params: bool = True,
+    ) -> None:
+        for p in group["params"]:
+            if skip_non_grad_params and p.grad is None:
+                continue  # pragma: no cover
+            state = self.state[p]
+            if len(state) == 0:
+                state["exp_avg"] = torch.zeros_like(p.data)
+                state["exp_avg_sq"] = torch.zeros_like(p.data)
+                state["step"] = 0
+            if "num_sum" not in state:
+                beta_fast = group["betas"][0]
+                state["num_sum"] = torch.tensor(
+                    (1 - beta_fast ** state["step"]) / (1 - beta_fast), dtype=torch.float32, device=p.device
+                )
+            elif state["num_sum"].dtype != torch.float32:
+                state["num_sum"] = state["num_sum"].float()
