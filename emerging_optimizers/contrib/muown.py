@@ -191,7 +191,7 @@ class Muown(Muon):
                 # Decoupled weight decay on the magnitude (the spectral-norm driver).
                 self._apply_weight_decay_inplace(g, grad_g, lr, weight_decay)
 
-                v_norm_new = v_new.norm(dim=1, keepdim=True)
+                v_norm_new = v_new.norm(dim=1, keepdim=True).clamp_min(1e-12)
                 p.copy_(g * (v_new / v_norm_new))
                 state["v_norm"] = v_norm_new
 
