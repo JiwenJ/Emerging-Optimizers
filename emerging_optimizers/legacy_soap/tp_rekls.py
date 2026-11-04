@@ -221,7 +221,7 @@ class TpRekls(opt_mixin.WeightDecayMixin, optim.Optimizer):
                 # Apply weight decay before the gather so l2 mode propagates into full_grad.
                 self._apply_weight_decay_inplace(p, local_grad, group["lr"], group["weight_decay"])
 
-                if partition_dim is None:
+                if partition_dim is None or self.tp_size == 1:
                     # Replicated parameter: no all-gather, state is already full-size.
                     full_grad = local_grad
                     kronecker_factor_list = [state["L"], state["R"]]
@@ -250,7 +250,7 @@ class TpRekls(opt_mixin.WeightDecayMixin, optim.Optimizer):
 
                 # Persist the updated local shard back into state — only needed for the TP path,
                 # since the replicated path updated state["L"], state["R"] in place via the alias.
-                if partition_dim is not None:
+                if partition_dim is not None and self.tp_size > 1:
                     state["L"].copy_(kronecker_factor_list[0].chunk(self.tp_size, dim=0)[self.tp_rank])
                     state["R"].copy_(kronecker_factor_list[1].chunk(self.tp_size, dim=0)[self.tp_rank])
 
@@ -279,7 +279,7 @@ class TpRekls(opt_mixin.WeightDecayMixin, optim.Optimizer):
 
                     full_precond_update = soap.project_out(full_adam_update, eigenbasis_list)
 
-                if partition_dim is None:
+                if partition_dim is None or self.tp_size == 1:
                     p.add_(full_precond_update, alpha=-group["lr"])
                 else:
                     local_precond_update = full_precond_update.chunk(self.tp_size, dim=partition_dim)[self.tp_rank]
