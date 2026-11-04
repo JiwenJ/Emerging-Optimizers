@@ -12,8 +12,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import contextlib
 import math
-from typing import TYPE_CHECKING, Callable, override
+from collections.abc import Iterator
+from typing import TYPE_CHECKING, Any, Callable, override
 
 
 if TYPE_CHECKING:
@@ -58,6 +60,9 @@ class PSGDPro(opt_mixin.WeightDecayMixin, torch.optim.Optimizer):
         warmup_steps: Warmup steps for preconditioner learning rate schedule.
         damping_noise_scale: scale of dampening noise added to gradients.
         max_update_rms: Clip the update RMS to this value (0 means no clipping).
+        seed: If set, the damping noise and the power-iteration starting vectors are drawn from RNGs seeded with
+            ``seed + step`` and the global RNG state is restored afterwards, so data-parallel replicas that call
+            step() with the same gradients stay identical. If None, the global RNG is used.
     """
 
     def __init__(
@@ -75,6 +80,7 @@ class PSGDPro(opt_mixin.WeightDecayMixin, torch.optim.Optimizer):
         min_precond_lr: float = 0.01,
         warmup_steps: int = 10000,
         max_update_rms: float = 0.0,
+        seed: int | None = None,
     ) -> None:
         if lr < 0.0:
             raise ValueError(f"Invalid learning rate: {lr}")
@@ -95,6 +101,7 @@ class PSGDPro(opt_mixin.WeightDecayMixin, torch.optim.Optimizer):
         self.precond_init_scale = precond_init_scale
         self.damping_noise_scale = damping_noise_scale
         self.warmup_steps = warmup_steps
+        self.seed = seed
         defaults = {
             "lr": lr,
             "beta_lip": beta_lip,
@@ -124,59 +131,76 @@ class PSGDPro(opt_mixin.WeightDecayMixin, torch.optim.Optimizer):
         if closure is not None:
             raise ValueError("closure is not supported")
 
-        for group in self.param_groups:
-            for p in group["params"]:
-                if p.grad is None:
-                    continue  # pragma: no cover
-                grad = p.grad
-                state = self.state[p]
+        rng_context: contextlib.AbstractContextManager[None] = contextlib.nullcontext()
+        if self.seed is not None:
+            current_step = max((state["step"] for state in self.state.values() if "step" in state), default=0)
+            rng_context = _seeded_rng(self.param_groups, self.seed + current_step)
 
-                # Optimizer state initialization
-                if "step" not in state:
-                    state["step"] = 0
-                # Momentum buffer
-                if "exp_avg" not in state:
-                    state["exp_avg"] = torch.zeros_like(grad)
-                # PSGD kronecker factor matrices and Lipschitz constants initialization
-                if "Q" not in state or "L" not in state:
-                    state["Q"], state["L"] = _init_psgd_kron_states(
+        with rng_context:
+            for group in self.param_groups:
+                for p in group["params"]:
+                    if p.grad is None:
+                        continue  # pragma: no cover
+                    grad = p.grad
+                    state = self.state[p]
+
+                    # Optimizer state initialization
+                    if "step" not in state:
+                        state["step"] = 0
+                    # Momentum buffer
+                    if "exp_avg" not in state:
+                        state["exp_avg"] = torch.zeros_like(grad)
+                    # PSGD kronecker factor matrices and Lipschitz constants initialization
+                    if "Q" not in state or "L" not in state:
+                        state["Q"], state["L"] = _init_psgd_kron_states(
+                            grad,
+                            precond_init_scale=self.precond_init_scale,
+                        )
+
+                    self._apply_weight_decay_inplace(
+                        p,
                         grad,
-                        precond_init_scale=self.precond_init_scale,
+                        group["lr"],
+                        group["weight_decay"],
                     )
 
-                self._apply_weight_decay_inplace(
-                    p,
-                    grad,
-                    group["lr"],
-                    group["weight_decay"],
-                )
+                    # update momentum buffer with EMA of gradient
+                    exp_avg = state["exp_avg"]
+                    exp_avg.lerp_(grad, 1 - group["momentum"])
 
-                # update momentum buffer with EMA of gradient
-                exp_avg = state["exp_avg"]
-                exp_avg.lerp_(grad, 1 - group["momentum"])
+                    # Get hyperparameters for preconditioner update
+                    precond_lr = _get_precond_lr(
+                        group["precond_lr"], state["step"], group["min_precond_lr"], self.warmup_steps
+                    )
 
-                # Get hyperparameters for preconditioner update
-                precond_lr = _get_precond_lr(
-                    group["precond_lr"], state["step"], group["min_precond_lr"], self.warmup_steps
-                )
+                    beta_lip = group["beta_lip"]
+                    # Preconditioner update
+                    state["Q"], state["L"] = _update_precond_procrustes(
+                        state["Q"], state["L"], exp_avg, self.damping_noise_scale, precond_lr, beta_lip
+                    )
+                    psgd_utils.uniformize_q_in_place(state["Q"])
 
-                beta_lip = group["beta_lip"]
-                # Preconditioner update
-                state["Q"], state["L"] = _update_precond_procrustes(
-                    state["Q"], state["L"], exp_avg, self.damping_noise_scale, precond_lr, beta_lip
-                )
-                psgd_utils.uniformize_q_in_place(state["Q"])
+                    # Get weight update by preconditioning the momentum
+                    update = psgd_kron_contractions.apply_preconditioner(state["Q"], exp_avg)
+                    _clip_update_rms_in_place(update, self.max_update_rms)
 
-                # Get weight update by preconditioning the momentum
-                update = psgd_kron_contractions.apply_preconditioner(state["Q"], exp_avg)
-                _clip_update_rms_in_place(update, self.max_update_rms)
+                    # Apply weight update
+                    p.add_(update, alpha=-group["lr"])
 
-                # Apply weight update
-                p.add_(update, alpha=-group["lr"])
-
-                state["step"] += 1
+                    state["step"] += 1
 
         return None
+
+
+@contextlib.contextmanager
+def _seeded_rng(param_groups: list[dict[str, Any]], seed: int) -> Iterator[None]:
+    cuda_devices = sorted({p.device.index for group in param_groups for p in group["params"] if p.is_cuda})
+    with torch.random.fork_rng(devices=cuda_devices):
+        torch.random.default_generator.manual_seed(seed)
+        for device in cuda_devices:
+            with torch.cuda.device(device):
+                torch.cuda.manual_seed(seed)
+        yield
 
 
 def _init_psgd_kron_states(
