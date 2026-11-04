@@ -107,7 +107,7 @@ class SOAP(opt_mixin.WeightDecayMixin, optim.Optimizer):
         self.power_iter_steps = power_iter_steps
         self.max_update_rms = max_update_rms
         self.use_kl_shampoo = use_kl_shampoo
-        self.stream_list = stream_list
+        self.stream_list = stream_list or None
         if correct_shampoo_beta_bias is not None:
             self.correct_shampoo_beta_bias = correct_shampoo_beta_bias
         else:
