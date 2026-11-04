@@ -188,109 +188,110 @@ class SOAP(opt_mixin.WeightDecayMixin, optim.Optimizer):
             for stream in self.stream_list:
                 stream.wait_stream(current_stream)
 
-        for group in self.param_groups:
-            for param_idx, p in enumerate(group["params"]):
-                if p.grad is None:
-                    continue  # pragma: no cover
+        try:
+            for group in self.param_groups:
+                for param_idx, p in enumerate(group["params"]):
+                    if p.grad is None:
+                        continue  # pragma: no cover
 
-                stream_ctx: torch.cuda.StreamContext | nullcontext[None] = nullcontext()
-                if self.stream_list is not None and current_stream is not None:
-                    stream = self.stream_list[param_idx % len(self.stream_list)]
-                    stream_ctx = torch.cuda.stream(stream)
+                    stream_ctx: torch.cuda.StreamContext | nullcontext[None] = nullcontext()
+                    if self.stream_list is not None and current_stream is not None:
+                        stream = self.stream_list[param_idx % len(self.stream_list)]
+                        stream_ctx = torch.cuda.stream(stream)
 
-                with stream_ctx:
-                    grad = p.grad.to(torch.float32)
-                    state = self.state[p]
+                    with stream_ctx:
+                        grad = p.grad.to(torch.float32)
+                        state = self.state[p]
 
-                    # NOTE: The upstream PyTorch implementations increment the step counter in the middle of the loop
-                    # to be used in bias correction. But this is confusing and error prone if anything else needs to use
-                    # the step counter.
-                    # We decided to follow Python and C convention to increment the step counter at the end of the loop.
-                    # An explicitly named 1-based iteration/step counter is created for bias correction and other terms
-                    # in the math equation that needs 1-based iteration count.
-                    curr_iter_1_based = state["step"] + 1
+                        # NOTE: The upstream PyTorch implementations increment the step counter in the middle of the loop
+                        # to be used in bias correction. But this is confusing and error prone if anything else needs to use
+                        # the step counter.
+                        # We decided to follow Python and C convention to increment the step counter at the end of the loop.
+                        # An explicitly named 1-based iteration/step counter is created for bias correction and other terms
+                        # in the math equation that needs 1-based iteration count.
+                        curr_iter_1_based = state["step"] + 1
 
-                    kronecker_factor_list = [state["L"], state["R"]]
-                    eigenbasis_list = [state["Q_L"], state["Q_R"]]
-                    eigvals_list = [state["eigvals_L"], state["eigvals_R"]]
+                        kronecker_factor_list = [state["L"], state["R"]]
+                        eigenbasis_list = [state["Q_L"], state["Q_R"]]
+                        eigvals_list = [state["eigvals_L"], state["eigvals_R"]]
 
-                    if not self.use_kl_shampoo:
-                        kronecker_factor_update_fn = update_kronecker_factors
-                    else:
-                        kronecker_factor_update_fn = partial(
-                            update_kronecker_factors_kl_shampoo,
-                            eigenbasis_list=eigenbasis_list,
-                            eigvals_list=eigvals_list,
-                            eps=group["eps"],
-                        )
-
-                    shampoo_beta = group["shampoo_beta"]
-                    if self.correct_shampoo_beta_bias:
-                        shampoo_beta = 1 - (1 - shampoo_beta) / (1 - shampoo_beta**curr_iter_1_based)
-
-                    with utils.fp32_matmul_precision(self.fp32_matmul_prec):
-                        kronecker_factor_update_fn(
-                            kronecker_factor_list=kronecker_factor_list, grad=grad, shampoo_beta=shampoo_beta
-                        )
-
-                    # Always use eigh for the first eigenbasis update
-                    use_eigh = self.use_eigh if state["step"] != 0 else True
-
-                    with utils.fp32_matmul_precision(self.qr_fp32_matmul_prec):
-                        updated_eigvals_list, updated_eigenbasis_list, exp_avg, exp_avg_sq = (
-                            update_eigenbasis_and_exp_avgs(
-                                kronecker_factor_list=kronecker_factor_list,
+                        if not self.use_kl_shampoo:
+                            kronecker_factor_update_fn = update_kronecker_factors
+                        else:
+                            kronecker_factor_update_fn = partial(
+                                update_kronecker_factors_kl_shampoo,
                                 eigenbasis_list=eigenbasis_list,
-                                exp_avg_sq=state["exp_avg_sq"],
-                                exp_avg=state["exp_avg"],
-                                use_eigh=use_eigh,
-                                power_iter_steps=self.power_iter_steps,
+                                eigvals_list=eigvals_list,
+                                eps=group["eps"],
                             )
+
+                        shampoo_beta = group["shampoo_beta"]
+                        if self.correct_shampoo_beta_bias:
+                            shampoo_beta = 1 - (1 - shampoo_beta) / (1 - shampoo_beta**curr_iter_1_based)
+
+                        with utils.fp32_matmul_precision(self.fp32_matmul_prec):
+                            kronecker_factor_update_fn(
+                                kronecker_factor_list=kronecker_factor_list, grad=grad, shampoo_beta=shampoo_beta
+                            )
+
+                        # Always use eigh for the first eigenbasis update
+                        use_eigh = self.use_eigh if state["step"] != 0 else True
+
+                        with utils.fp32_matmul_precision(self.qr_fp32_matmul_prec):
+                            updated_eigvals_list, updated_eigenbasis_list, exp_avg, exp_avg_sq = (
+                                update_eigenbasis_and_exp_avgs(
+                                    kronecker_factor_list=kronecker_factor_list,
+                                    eigenbasis_list=eigenbasis_list,
+                                    exp_avg_sq=state["exp_avg_sq"],
+                                    exp_avg=state["exp_avg"],
+                                    use_eigh=use_eigh,
+                                    power_iter_steps=self.power_iter_steps,
+                                )
+                            )
+                            state["Q_L"], state["Q_R"] = updated_eigenbasis_list
+                            state["eigvals_L"], state["eigvals_R"] = updated_eigvals_list
+
+                            # rebind local ref so project_in() below uses the updated Q
+                            eigenbasis_list = updated_eigenbasis_list
+
+                            state["exp_avg"] = exp_avg
+                            state["exp_avg_sq"] = exp_avg_sq
+
+                        self._apply_weight_decay_inplace(
+                            p,
+                            grad,
+                            group["lr"],
+                            group["weight_decay"],
                         )
-                        state["Q_L"], state["Q_R"] = updated_eigenbasis_list
-                        state["eigvals_L"], state["eigvals_R"] = updated_eigvals_list
 
-                        # rebind local ref so project_in() below uses the updated Q
-                        eigenbasis_list = updated_eigenbasis_list
+                        # Project gradients to the eigenbases of Shampoo's preconditioner
+                        with utils.fp32_matmul_precision(self.fp32_matmul_prec):
+                            grad_projected = project_in(grad, eigenbasis_list)
 
-                        state["exp_avg"] = exp_avg
-                        state["exp_avg_sq"] = exp_avg_sq
+                        # Calculate the Adam update for the projected gradient tensor
+                        adam_update = update_functions.calculate_adam_update(
+                            grad_projected,
+                            state["exp_avg"],
+                            state["exp_avg_sq"],
+                            betas=group["betas"],
+                            eps=group["eps"],
+                            correct_bias=self.correct_bias,
+                            nesterov=self.nesterov,
+                            step=curr_iter_1_based,  # 1-based iteration index is used for bias correction
+                        )
 
-                    self._apply_weight_decay_inplace(
-                        p,
-                        grad,
-                        group["lr"],
-                        group["weight_decay"],
-                    )
+                        # Projecting back the preconditioned (by ADAM) exponential moving average of gradients
+                        with utils.fp32_matmul_precision(self.fp32_matmul_prec):
+                            precond_update = project_out(adam_update, eigenbasis_list)
 
-                    # Project gradients to the eigenbases of Shampoo's preconditioner
-                    with utils.fp32_matmul_precision(self.fp32_matmul_prec):
-                        grad_projected = project_in(grad, eigenbasis_list)
+                        _clip_update_rms_in_place(precond_update, self.max_update_rms)
+                        p.add_(precond_update, alpha=-group["lr"])
 
-                    # Calculate the Adam update for the projected gradient tensor
-                    adam_update = update_functions.calculate_adam_update(
-                        grad_projected,
-                        state["exp_avg"],
-                        state["exp_avg_sq"],
-                        betas=group["betas"],
-                        eps=group["eps"],
-                        correct_bias=self.correct_bias,
-                        nesterov=self.nesterov,
-                        step=curr_iter_1_based,  # 1-based iteration index is used for bias correction
-                    )
-
-                    # Projecting back the preconditioned (by ADAM) exponential moving average of gradients
-                    with utils.fp32_matmul_precision(self.fp32_matmul_prec):
-                        precond_update = project_out(adam_update, eigenbasis_list)
-
-                    _clip_update_rms_in_place(precond_update, self.max_update_rms)
-                    p.add_(precond_update, alpha=-group["lr"])
-
-                    state["step"] += 1
-
-        if self.stream_list is not None and current_stream is not None:
-            for stream in self.stream_list:
-                current_stream.wait_stream(stream)
+                        state["step"] += 1
+        finally:
+            if self.stream_list is not None and current_stream is not None:
+                for stream in self.stream_list:
+                    current_stream.wait_stream(stream)
 
         return None
 

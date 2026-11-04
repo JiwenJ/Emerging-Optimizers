@@ -376,67 +376,68 @@ class SoapBase(optim.Optimizer, opt_mixin.WeightDecayMixin):
             for stream in self.stream_list:
                 stream.wait_stream(current_stream)
 
-        for group in self.param_groups:
-            for param_idx, p in enumerate(group["params"]):
-                if p.grad is None:
-                    continue  # pragma: no cover
+        try:
+            for group in self.param_groups:
+                for param_idx, p in enumerate(group["params"]):
+                    if p.grad is None:
+                        continue  # pragma: no cover
 
-                stream_ctx: torch.cuda.StreamContext | contextlib.nullcontext[None] = contextlib.nullcontext()
-                if self.stream_list is not None and current_stream is not None:
-                    stream = self.stream_list[param_idx % len(self.stream_list)]
-                    stream_ctx = torch.cuda.stream(stream)
+                    stream_ctx: torch.cuda.StreamContext | contextlib.nullcontext[None] = contextlib.nullcontext()
+                    if self.stream_list is not None and current_stream is not None:
+                        stream = self.stream_list[param_idx % len(self.stream_list)]
+                        stream_ctx = torch.cuda.stream(stream)
 
-                with stream_ctx:
-                    grad = p.grad.to(torch.float32)
-                    state = self.state[p]
+                    with stream_ctx:
+                        grad = p.grad.to(torch.float32)
+                        state = self.state[p]
 
-                    curr_iter_1_based = state["step"] + 1
+                        curr_iter_1_based = state["step"] + 1
 
-                    # bias correction on shampoo beta
-                    shampoo_beta = group["shampoo_beta"]
-                    shampoo_beta = 1 - (1 - shampoo_beta) / (1 - shampoo_beta**curr_iter_1_based)
+                        # bias correction on shampoo beta
+                        shampoo_beta = group["shampoo_beta"]
+                        shampoo_beta = 1 - (1 - shampoo_beta) / (1 - shampoo_beta**curr_iter_1_based)
 
-                    preconditioner = self.PreconditionerCls(state, self.eps)
-                    if state["step"] == 0:
-                        preconditioner.init_step(grad, shampoo_beta)
-                    else:
-                        preconditioner.step(grad, shampoo_beta)
+                        preconditioner = self.PreconditionerCls(state, self.eps)
+                        if state["step"] == 0:
+                            preconditioner.init_step(grad, shampoo_beta)
+                        else:
+                            preconditioner.step(grad, shampoo_beta)
 
-                    self._apply_weight_decay_inplace(
-                        p,
-                        grad,
-                        group["lr"],
-                        group["weight_decay"],
-                    )
-
-                    # No matmul in adam update, put it under matmul precision context to make code for code simplicity
-                    with utils.fp32_matmul_precision("highest"):
-                        # Project gradients to the eigenbases of Shampoo's preconditioner
-                        grad_projected = preconditioner.project_in(grad)
-
-                        # Calculate the inner scalar update for the projected gradient tensor
-                        scalar_update = self._scalar_update(
-                            grad_projected,
-                            preconditioner.exp_avg,
-                            preconditioner.exp_avg_sq,
-                            betas=group["betas"],
-                            step=curr_iter_1_based,  # 1-based iteration index is used for bias correction
+                        self._apply_weight_decay_inplace(
+                            p,
+                            grad,
+                            group["lr"],
+                            group["weight_decay"],
                         )
 
-                        # Projecting back the preconditioned exponential moving average of gradients
-                        precond_update = preconditioner.project_out(scalar_update)
+                        # No matmul in adam update, put it under matmul precision context to make code for code simplicity
+                        with utils.fp32_matmul_precision("highest"):
+                            # Project gradients to the eigenbases of Shampoo's preconditioner
+                            grad_projected = preconditioner.project_in(grad)
 
-                    # TODO (skyw): Add RMS clip back.
-                    p.add_(precond_update, alpha=-group["lr"])
+                            # Calculate the inner scalar update for the projected gradient tensor
+                            scalar_update = self._scalar_update(
+                                grad_projected,
+                                preconditioner.exp_avg,
+                                preconditioner.exp_avg_sq,
+                                betas=group["betas"],
+                                step=curr_iter_1_based,  # 1-based iteration index is used for bias correction
+                            )
 
-                    # Preconditioner does both inplace and out-of-place changes, rebind state to make sure
-                    # everything in state is properly updated
-                    preconditioner.rebind_state(state)
-                    state["step"] += 1
+                            # Projecting back the preconditioned exponential moving average of gradients
+                            precond_update = preconditioner.project_out(scalar_update)
 
-        if self.stream_list is not None and current_stream is not None:
-            for stream in self.stream_list:
-                current_stream.wait_stream(stream)
+                        # TODO (skyw): Add RMS clip back.
+                        p.add_(precond_update, alpha=-group["lr"])
+
+                        # Preconditioner does both inplace and out-of-place changes, rebind state to make sure
+                        # everything in state is properly updated
+                        preconditioner.rebind_state(state)
+                        state["step"] += 1
+        finally:
+            if self.stream_list is not None and current_stream is not None:
+                for stream in self.stream_list:
+                    current_stream.wait_stream(stream)
 
         return None
 
