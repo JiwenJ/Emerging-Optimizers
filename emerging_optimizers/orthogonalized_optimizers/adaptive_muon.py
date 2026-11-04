@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import math
 from typing import TYPE_CHECKING, Callable, Literal, override
 
 
@@ -186,6 +187,7 @@ class AdaptiveMuon(OrthogonalizedOptimizer):
         *,
         raw_grad: torch.Tensor | None = None,
         pre_orth_grad: torch.Tensor | None = None,
+        bias_correction: float = 1.0,
     ) -> torch.Tensor:
         """Apply second moment accumulation and normalization.
 
@@ -197,9 +199,10 @@ class AdaptiveMuon(OrthogonalizedOptimizer):
 
           .. math::
 
-              \\alpha_t = \\frac{\\|g_t^{\\text{pre-orth}}\\|_F}{\\sqrt{v_t} + \\varepsilon}
+              \\alpha_t = \\frac{\\sqrt{1 - \\beta_2^t}}{1 - \\mu^t}
+              \\frac{\\|g_t^{\\text{pre-orth}}\\|_F}{\\sqrt{v_t} + \\varepsilon}
 
-          where :math:`v_t` is the EMA of :math:`\\|G_t\\|_F^2`.
+          where :math:`v_t` is the EMA of :math:`\\|G_t\\|_F^2` and :math:`\\mu` is the momentum.
 
         For all methods:
         1. Updates the second moment as an EMA of (some function of) squared gradients
@@ -213,6 +216,8 @@ class AdaptiveMuon(OrthogonalizedOptimizer):
             raw_grad: (NAMO only) The raw gradient before momentum update.
             pre_orth_grad: (NAMO only) The gradient after momentum/Nesterov,
                 before orthogonalization.
+            bias_correction: (NAMO only) The Adam bias correction
+                :math:`\\sqrt{1 - \\beta_2^t} / (1 - \\mu^t)` applied to :math:`\\alpha_t`.
 
         Returns:
             The adaptively scaled weight update tensor.
@@ -250,9 +255,9 @@ class AdaptiveMuon(OrthogonalizedOptimizer):
             grad_norm_square = torch.linalg.vector_norm(raw_grad).square()
             moment2.lerp_(grad_norm_square, 1 - beta2)
 
-            # α_t = ||pre_orth_grad||_F / (sqrt(v_t) + ε)
+            # α_t = sqrt(1 - β2^t) / (1 - μ^t) * ||pre_orth_grad||_F / (sqrt(v_t) + ε)
             pre_orth_norm = torch.linalg.vector_norm(pre_orth_grad)
-            alpha_t = pre_orth_norm / (moment2.sqrt() + eps)
+            alpha_t = pre_orth_norm / (moment2.sqrt() + eps) * bias_correction
             return orth_grad * alpha_t
 
         else:
@@ -311,6 +316,12 @@ class AdaptiveMuon(OrthogonalizedOptimizer):
                     group_kwargs = {k: v for k, v in group.items() if k != "params"}
                     orth_grad = self.orthogonalize(p, grad, **group_kwargs)
 
+                bias_correction = 1.0
+                if self.moment2_method == "namo":
+                    state["step"] = state.get("step", 0) + 1
+                    bias_correction = math.sqrt(1 - group["beta2"] ** state["step"]) / (
+                        1 - group["momentum"] ** state["step"]
+                    )
                 update = self._apply_moment2_normalization(
                     orth_grad=orth_grad,
                     moment2=state["moment2_buffer"],
@@ -318,6 +329,7 @@ class AdaptiveMuon(OrthogonalizedOptimizer):
                     eps=group["eps"],
                     raw_grad=raw_grad,
                     pre_orth_grad=grad if raw_grad is not None else None,
+                    bias_correction=bias_correction,
                 )
                 update = self._apply_muon_scale(update, update.size(-2), update.size(-1))
 
