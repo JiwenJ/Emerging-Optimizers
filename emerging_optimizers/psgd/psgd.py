@@ -128,7 +128,7 @@ class PSGDPro(opt_mixin.WeightDecayMixin, torch.optim.Optimizer):
             for p in group["params"]:
                 if p.grad is None:
                     continue  # pragma: no cover
-                grad = p.grad
+                grad = p.grad.view(1) if p.dim() == 0 else p.grad
                 state = self.state[p]
 
                 # Optimizer state initialization
@@ -172,7 +172,7 @@ class PSGDPro(opt_mixin.WeightDecayMixin, torch.optim.Optimizer):
                 _clip_update_rms_in_place(update, self.max_update_rms)
 
                 # Apply weight update
-                p.add_(update, alpha=-group["lr"])
+                p.add_(update.view_as(p), alpha=-group["lr"])
 
                 state["step"] += 1
 
