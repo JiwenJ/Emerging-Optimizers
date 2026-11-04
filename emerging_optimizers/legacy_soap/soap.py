@@ -210,6 +210,13 @@ class SOAP(opt_mixin.WeightDecayMixin, optim.Optimizer):
                     # in the math equation that needs 1-based iteration count.
                     curr_iter_1_based = state["step"] + 1
 
+                    self._apply_weight_decay_inplace(
+                        p,
+                        grad,
+                        group["lr"],
+                        group["weight_decay"],
+                    )
+
                     kronecker_factor_list = [state["L"], state["R"]]
                     eigenbasis_list = [state["Q_L"], state["Q_R"]]
                     eigvals_list = [state["eigvals_L"], state["eigvals_R"]]
@@ -255,13 +262,6 @@ class SOAP(opt_mixin.WeightDecayMixin, optim.Optimizer):
 
                         state["exp_avg"] = exp_avg
                         state["exp_avg_sq"] = exp_avg_sq
-
-                    self._apply_weight_decay_inplace(
-                        p,
-                        grad,
-                        group["lr"],
-                        group["weight_decay"],
-                    )
 
                     # Project gradients to the eigenbases of Shampoo's preconditioner
                     with utils.fp32_matmul_precision(self.fp32_matmul_prec):
