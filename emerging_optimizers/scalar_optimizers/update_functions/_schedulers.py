@@ -28,6 +28,8 @@ def _half_life_steps(beta: float, eps: float = 1e-8) -> float:
     Returns:
         The number of steps to reach 0.5.
     """
+    if beta + eps >= 1.0:
+        raise ValueError(f"beta must be smaller than 1 - eps = {1 - eps}, got {beta}")
     return math.log(0.5) / math.log(beta + eps) - 1
 
 
