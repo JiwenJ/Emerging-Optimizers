@@ -71,6 +71,10 @@ def procrustes_step(
             tr_RRRQ = torch.trace(RRRQ)
             # for a 3rd order expansion, we take the larger root of the cubic.
             _step_size = (-tr_RRQ - torch.sqrt(tr_RRQ * tr_RRQ - 1.5 * tr_RQ * tr_RRRQ)) / (0.75 * tr_RRRQ)
+            order2_step_size = torch.where(
+                tr_RRQ < 0, torch.clamp(-tr_RQ / tr_RRQ, min=0, max=max_step_size), max_step_size
+            )
+            _step_size = torch.where(torch.isfinite(_step_size), _step_size, order2_step_size)
             step_size = torch.clamp(_step_size, max=max_step_size).item()
             # Q += step_size * (RQ + 0.5 * step_size * (RRQ + 0.25 * step_size * RRRQ))
             Q = torch.add(
