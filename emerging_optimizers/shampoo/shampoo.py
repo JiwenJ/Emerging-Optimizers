@@ -19,7 +19,6 @@ if TYPE_CHECKING:
     from typing import overload
 
 import torch
-from torch import optim
 from torch.optim.optimizer import ParamsT
 
 from emerging_optimizers import mixin as opt_mixin
@@ -295,7 +294,7 @@ def get_shampoo_scale_factor(
         raise ValueError(f"Invalid mode for Shampoo update scale factor: {mode}")
 
 
-class ShampooBase(optim.Optimizer, opt_mixin.WeightDecayMixin):
+class ShampooBase(opt_mixin.PreserveStateDtypeMixin, opt_mixin.WeightDecayMixin):
     """Canonical Shampoo step loop, shared by the Shampoo-family optimizers.
 
     :meth:`step` is the whole algorithm: update the preconditioner from the gradient, run an inner scalar

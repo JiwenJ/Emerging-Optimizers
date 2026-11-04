@@ -27,8 +27,9 @@ if TYPE_CHECKING:
     from typing import overload
 
 import torch
-from torch.optim.optimizer import Optimizer, ParamsT
+from torch.optim.optimizer import ParamsT
 
+from emerging_optimizers import mixin as opt_mixin
 from emerging_optimizers import registry, utils
 
 
@@ -77,7 +78,7 @@ def _retract_factors(
 
 
 @registry.register_optimizer("iso")
-class Iso(Optimizer):
+class Iso(opt_mixin.PreserveStateDtypeMixin):
     """Isospectral optimizer for two-dimensional parameters.
 
     The optimizer factorizes each parameter as ``U @ diag(Sigma) @ V.T`` and

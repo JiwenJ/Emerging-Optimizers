@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 import torch
 from torch.optim.optimizer import ParamsT
 
+from emerging_optimizers import mixin as opt_mixin
 from emerging_optimizers import utils
 from emerging_optimizers.orthogonalized_optimizers.muon import Muon, MuonScaleT
 from emerging_optimizers.orthogonalized_optimizers.muon_utils import NSCoeffT
@@ -57,7 +58,7 @@ def _weight_norm_decompose(
     return v, grad_g, grad_v
 
 
-class Muown(Muon):
+class Muown(opt_mixin.PreserveStateDtypeMixin, Muon):
     """Muown: Muon with internal weight normalization (row-norm control).
 
     Muown (Lion et al., *Muown: Row-Norm Control for Muon Optimization*, arXiv:2605.10797) is a drop-in

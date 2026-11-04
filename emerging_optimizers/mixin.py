@@ -13,7 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Literal
+from itertools import chain
+from typing import Any, Literal, override
 
 import torch
 
@@ -54,3 +55,33 @@ class WeightDecayMixin:
             p.add_(p, alpha=(-(weight_decay * lr * lr)))
         else:
             raise ValueError(f"Invalid weight decay method: {weight_decay_method}")
+
+
+class PreserveStateDtypeMixin(torch.optim.Optimizer):
+    """Optimizer base that keeps the saved state dtypes in :meth:`load_state_dict`.
+
+    ``torch.optim.Optimizer.load_state_dict`` casts floating point state to the parameter dtype, which turns the fp32
+    state these optimizers keep for bf16/fp16 parameters into low precision and breaks the next ``step()``.
+    """
+
+    @override
+    def load_state_dict(self, state_dict: dict[str, Any]) -> None:
+        super().load_state_dict(state_dict)
+        saved_ids = chain.from_iterable(group["params"] for group in state_dict["param_groups"])
+        params = chain.from_iterable(group["params"] for group in self.param_groups)
+        for saved_id, p in zip(saved_ids, params):
+            if saved_id not in state_dict["state"]:
+                continue
+            state = self.state[p]
+            for key, saved_value in state_dict["state"][saved_id].items():
+                state[key] = _with_saved_dtype(state[key], saved_value)
+
+
+def _with_saved_dtype(value: Any, saved_value: Any) -> Any:
+    if isinstance(value, torch.Tensor) and isinstance(saved_value, torch.Tensor):
+        if value.is_floating_point() and value.dtype != saved_value.dtype:
+            return saved_value.to(device=value.device, copy=True)
+        return value
+    if isinstance(value, (list, tuple)) and isinstance(saved_value, (list, tuple)) and len(value) == len(saved_value):
+        return type(value)(_with_saved_dtype(v, s) for v, s in zip(value, saved_value))
+    return value

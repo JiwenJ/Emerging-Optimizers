@@ -22,7 +22,6 @@ if TYPE_CHECKING:
 
 import torch
 from absl import logging
-from torch import optim
 from torch.optim.optimizer import ParamsT
 
 from emerging_optimizers import mixin as opt_mixin
@@ -42,7 +41,7 @@ __all__ = [
 
 
 @registry.register_optimizer("soap")
-class SOAP(opt_mixin.WeightDecayMixin, optim.Optimizer):
+class SOAP(opt_mixin.WeightDecayMixin, opt_mixin.PreserveStateDtypeMixin):
     """Implements a variant of SOAP (ShampoO with Adam in the Preconditioner eigenbasis) algorithm.
 
     SOAP (https://arxiv.org/abs/2409.11321) is a preconditioned optimizer that combines the benefits of Shampoo's

@@ -19,7 +19,6 @@ if TYPE_CHECKING:
     from typing import overload
 
 import torch
-from torch import optim
 from torch.optim.optimizer import ParamsT
 
 from emerging_optimizers import mixin as opt_mixin
@@ -33,7 +32,7 @@ __all__ = ["MOSO"]
 
 
 @registry.register_optimizer("moso")
-class MOSO(opt_mixin.WeightDecayMixin, optim.Optimizer):
+class MOSO(opt_mixin.WeightDecayMixin, opt_mixin.PreserveStateDtypeMixin):
     r"""Momentum One-Sided SOAP.
 
     MOSO tracks EMA momentum like Muon, accumulates a SOAP/Shampoo-style covariance of that momentum on the

@@ -20,7 +20,6 @@ if TYPE_CHECKING:
     from typing import overload
 
 import torch
-from torch import optim
 from torch.optim.optimizer import ParamsT
 
 from emerging_optimizers import mixin as opt_mixin
@@ -230,7 +229,7 @@ class ReklsPreconditioner(KlSoapPreconditioner):
             self.exp_avg = self.project_in(exp_avg)
 
 
-class SoapBase(optim.Optimizer, opt_mixin.WeightDecayMixin):
+class SoapBase(opt_mixin.PreserveStateDtypeMixin, opt_mixin.WeightDecayMixin):
     """Canonical SOAP step loop, shared by the SOAP-family optimizers.
 
     :meth:`step` is the whole algorithm: update the preconditioner from the gradient, project the gradient
