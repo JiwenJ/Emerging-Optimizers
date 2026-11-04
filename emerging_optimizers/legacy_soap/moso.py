@@ -138,7 +138,7 @@ class MOSO(opt_mixin.WeightDecayMixin, optim.Optimizer):
                 if p.grad is None:
                     continue  # pragma: no cover
 
-                grad = p.grad.to(torch.float32)
+                grad = p.grad.to(torch.float32, copy=self.weight_decay_method == "l2")
                 state = self.state[p]
                 curr_iter_1_based = state["step"] + 1
 

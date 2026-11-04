@@ -179,7 +179,7 @@ class OrthogonalizedOptimizer(opt_mixin.WeightDecayMixin, optim.Optimizer, Gener
                 if p.grad is None:
                     continue  # pragma: no cover
 
-                grad = p.grad
+                grad = p.grad.clone() if self.weight_decay_method == "l2" else p.grad
                 state = self.state[p]
 
                 self._apply_weight_decay_inplace(

@@ -128,7 +128,7 @@ class PSGDPro(opt_mixin.WeightDecayMixin, torch.optim.Optimizer):
             for p in group["params"]:
                 if p.grad is None:
                     continue  # pragma: no cover
-                grad = p.grad
+                grad = p.grad.clone() if self.weight_decay_method == "l2" else p.grad
                 state = self.state[p]
 
                 # Optimizer state initialization

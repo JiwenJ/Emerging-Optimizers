@@ -199,7 +199,7 @@ class SOAP(opt_mixin.WeightDecayMixin, optim.Optimizer):
                     stream_ctx = torch.cuda.stream(stream)
 
                 with stream_ctx:
-                    grad = p.grad.to(torch.float32)
+                    grad = p.grad.to(torch.float32, copy=self.weight_decay_method == "l2")
                     state = self.state[p]
 
                     # NOTE: The upstream PyTorch implementations increment the step counter in the middle of the loop

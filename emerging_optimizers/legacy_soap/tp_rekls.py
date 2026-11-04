@@ -214,7 +214,7 @@ class TpRekls(opt_mixin.WeightDecayMixin, optim.Optimizer):
                 if p.grad is None:
                     continue  # pragma: no cover
 
-                local_grad = p.grad.to(torch.float32)
+                local_grad = p.grad.to(torch.float32, copy=self.weight_decay_method == "l2")
                 state = self.state[p]
                 curr_iter_1_based = state["step"] + 1
 
