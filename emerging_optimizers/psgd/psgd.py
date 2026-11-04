@@ -88,6 +88,8 @@ class PSGDPro(opt_mixin.WeightDecayMixin, torch.optim.Optimizer):
             raise ValueError(f"Invalid precond_lr: {precond_lr}")
         if min_precond_lr < 0.0:
             raise ValueError(f"Invalid min_precond_lr: {min_precond_lr}")
+        if min_precond_lr > precond_lr:
+            raise ValueError(f"min_precond_lr ({min_precond_lr}) must not exceed precond_lr ({precond_lr})")
         if warmup_steps <= 0:
             raise ValueError(f"Invalid warmup_steps: {warmup_steps}")
         self.weight_decay_method = weight_decay_method
