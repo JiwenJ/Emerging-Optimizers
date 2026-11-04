@@ -114,10 +114,11 @@ def run_case(
     # --- Correctness & Numerical Precision ---
     ref_u = polar_retraction(u_init, mom_u, lr)
 
-    qr_u = qr_retraction(u_init, mom_u, lr)
-    cayley_u = cayley_retraction(u_init, mom_u, lr)
-    ns5_u = newton_schulz_retraction(u_init, mom_u, lr, num_ns_steps=5)
-    ns8_u = newton_schulz_retraction(u_init, mom_u, lr, num_ns_steps=8)
+    with utils.fp32_matmul_precision(fp32_prec):
+        qr_u = qr_retraction(u_init, mom_u, lr)
+        cayley_u = cayley_retraction(u_init, mom_u, lr)
+        ns5_u = newton_schulz_retraction(u_init, mom_u, lr, num_ns_steps=5)
+        ns8_u = newton_schulz_retraction(u_init, mom_u, lr, num_ns_steps=8)
 
     acc = test_numerical_accuracy(ref_u, qr_u, cayley_u, ns5_u, ns8_u)
 
