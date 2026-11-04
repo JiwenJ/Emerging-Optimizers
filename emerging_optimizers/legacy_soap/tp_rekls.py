@@ -17,7 +17,6 @@ from typing import TYPE_CHECKING, Callable, override
 
 import torch
 from torch import distributed as dist
-from torch import optim
 from torch.optim.optimizer import ParamsT
 
 
@@ -78,7 +77,7 @@ def all_gather_grad_and_kronecker_factors_tp(
 
 
 @registry.register_optimizer("tp_rekls")
-class TpRekls(opt_mixin.WeightDecayMixin, optim.Optimizer):
+class TpRekls(opt_mixin.WeightDecayMixin, opt_mixin.PreserveStateDtypeMixin):
     """Tensor-parallel variant of :class:`~emerging_optimizers.legacy_soap.rekls.REKLS`.
 
     Reimplemented from scratch (not inheriting from :class:`~emerging_optimizers.legacy_soap.soap.SOAP`) so the

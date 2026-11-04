@@ -35,7 +35,7 @@ __all__ = [
 
 
 @registry.register_optimizer("psgd_pro")
-class PSGDPro(opt_mixin.WeightDecayMixin, torch.optim.Optimizer):
+class PSGDPro(opt_mixin.WeightDecayMixin, opt_mixin.PreserveStateDtypeMixin):
     """Implements a variant of the PSGD optimization algorithm (PSGD-Kron-Whiten with Procrustes step for preconditioner update).
 
     Preconditioned Stochastic Gradient Descent (PSGD) (https://arxiv.org/abs/1512.04202) is a preconditioned optimization algorithm
