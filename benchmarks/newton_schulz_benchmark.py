@@ -82,6 +82,8 @@ def main(_: Any) -> None:
         raise ValueError(f"--batch must be >= 1, got {batch}.")
     if batch > 1 and FLAGS.backend == "te":
         raise ValueError("--batch > 1 is not supported with --backend=te.")
+    if batch > 1 and tp_group is not None:
+        raise ValueError("--batch > 1 is not supported with tensor parallelism (WORLD_SIZE > 1).")
 
     matrix_shape = (FLAGS.m, FLAGS.n)
     local_shape = [batch, *matrix_shape] if batch > 1 else list(matrix_shape)
