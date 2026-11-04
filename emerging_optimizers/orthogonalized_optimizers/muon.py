@@ -69,7 +69,9 @@ class Muon(OrthogonalizedOptimizer[HookStateT]):
         {_args_doc}
         coefficient_type: The type of coefficient set to use for the Newton-Schulz iteration. Can be one of
             ["simple", "quintic", "polar_express", "cans", "aol", "deepseekv4", "cubic5", "custom"].
-        num_ns_steps: The number of iteration steps to use in the Newton-Schulz iteration.
+        num_ns_steps: The number of iteration steps to use in the Newton-Schulz iteration. "cubic5" requires 5.
+        custom_coefficient_sets: Coefficient tuples for the Newton-Schulz iteration, required when
+            ``coefficient_type`` is "custom".
         scale_mode: The type of scale factor to use for the update. Defaults to "spectral" style scaling.
         extra_scale_factor: The additional scale factor to use for the update. Defaults to 0.2, following the recipe
             in https://arxiv.org/abs/2607.20548, which closely matches the update RMS norm of AdamW as suggested by
@@ -89,6 +91,7 @@ class Muon(OrthogonalizedOptimizer[HookStateT]):
         fp32_matmul_prec: FP32MatmulPrecT = "medium",
         coefficient_type: NSCoeffT = "polar_express",
         num_ns_steps: int = 8,
+        custom_coefficient_sets: list[tuple[float, float, float]] | None = None,
         scale_mode: MuonScaleT = "spectral",
         extra_scale_factor: float = 0.2,
         use_syrk: bool = False,
@@ -96,6 +99,13 @@ class Muon(OrthogonalizedOptimizer[HookStateT]):
     ) -> None:
         if num_ns_steps < 1:
             raise ValueError(f"num_ns_steps must be at least 1, got {num_ns_steps}")
+        num_cubic5_steps = len(muon_utils._COEFFICIENT_SETS["cubic5"])
+        if coefficient_type == "cubic5" and num_ns_steps != num_cubic5_steps:
+            raise ValueError(
+                f"coefficient_type='cubic5' is a fixed {num_cubic5_steps}-step schedule; got num_ns_steps={num_ns_steps}."
+            )
+        if coefficient_type == "custom" and custom_coefficient_sets is None:
+            raise ValueError("custom_coefficient_sets must be provided when coefficient_type is 'custom'.")
 
         self._num_ns_steps = num_ns_steps
         self._coefficient_type = coefficient_type
@@ -130,6 +140,7 @@ class Muon(OrthogonalizedOptimizer[HookStateT]):
                 grad,
                 steps=num_ns_steps,
                 coefficient_type=coefficient_type,
+                custom_coefficient_sets=custom_coefficient_sets,
                 use_syrk=use_syrk,
             )
             scale_factor = get_muon_scale_factor(grad.size(-2), grad.size(-1), mode=scale_mode)
