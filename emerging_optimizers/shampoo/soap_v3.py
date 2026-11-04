@@ -279,7 +279,7 @@ class SoapBase(optim.Optimizer, opt_mixin.WeightDecayMixin):
     ) -> None:
         self.weight_decay_method = "decoupled"
         self.eps = eps
-        self.stream_list = stream_list
+        self.stream_list = stream_list or None
 
         defaults = {
             "lr": lr,
