@@ -207,4 +207,5 @@ class Spel(OrthogonalizedOptimizer):
         p.copy_(scale * orth_p)
 
 
-Spel.__doc__ = Spel.__doc__.format(_args_doc=_args_doc)  # type: ignore[union-attr]
+if Spel.__doc__ is not None:
+    Spel.__doc__ = Spel.__doc__.format(_args_doc=_args_doc)

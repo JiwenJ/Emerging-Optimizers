@@ -269,4 +269,5 @@ class OrthogonalizedOptimizer(opt_mixin.WeightDecayMixin, optim.Optimizer, Gener
         pass
 
 
-OrthogonalizedOptimizer.__doc__ = OrthogonalizedOptimizer.__doc__.format(_args_doc=_args_doc)  # type: ignore[union-attr]
+if OrthogonalizedOptimizer.__doc__ is not None:
+    OrthogonalizedOptimizer.__doc__ = OrthogonalizedOptimizer.__doc__.format(_args_doc=_args_doc)

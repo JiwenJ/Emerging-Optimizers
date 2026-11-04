@@ -108,7 +108,8 @@ class PolarGrad(OrthogonalizedOptimizer):
         )
 
 
-PolarGrad.__doc__ = PolarGrad.__doc__.format(_args_doc=_args_doc)  # type: ignore[union-attr]
+if PolarGrad.__doc__ is not None:
+    PolarGrad.__doc__ = PolarGrad.__doc__.format(_args_doc=_args_doc)
 
 
 def one_sided_polargrad_orth_fn(
