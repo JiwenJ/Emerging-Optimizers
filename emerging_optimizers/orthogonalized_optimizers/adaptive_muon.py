@@ -283,7 +283,7 @@ class AdaptiveMuon(OrthogonalizedOptimizer):
             for p in group["params"]:
                 if p.dim() != 2:
                     raise ValueError(f"{self.__class__.__name__} only supports 2D parameters")
-                grad = p.grad
+                grad = p.grad.clone() if self.weight_decay_method == "l2" else p.grad
                 if grad is None:
                     continue  # pragma: no cover
                 state = self.state[p]

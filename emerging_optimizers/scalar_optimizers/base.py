@@ -127,11 +127,6 @@ class _ScalarOptimizerBase(WeightDecayMixin, torch.optim.Optimizer):
     def step(self, closure: Callable[[], float] | None = None) -> float | None:
         """Perform a single optimization step.
 
-        Note:
-            When ``weight_decay_method="l2"``, ``p.grad`` is modified in-place
-            (the L2 penalty ``weight_decay * p`` is added to the gradient).
-            If you need the original gradient after this call, clone it beforehand.
-
         Args:
             closure: Unsupported; must be ``None``.
         """
@@ -154,10 +149,11 @@ class _ScalarOptimizerBase(WeightDecayMixin, torch.optim.Optimizer):
                 update_kwargs["step"] = state["step"]
 
                 ctx = self.pre_step_inplace(p, group)
-                self._apply_weight_decay_inplace(p.data, p.grad, lr, weight_decay)
+                grad = p.grad.clone() if self.weight_decay_method == "l2" else p.grad
+                self._apply_weight_decay_inplace(p.data, grad, lr, weight_decay)
 
                 buffers = tuple(state[key] for key in self.state_keys)
-                update = self.update_fn(p.grad, *buffers, **update_kwargs)
+                update = self.update_fn(grad, *buffers, **update_kwargs)
                 p.data.add_(update, alpha=-lr)
 
                 self.post_step_inplace(p, group, ctx)
