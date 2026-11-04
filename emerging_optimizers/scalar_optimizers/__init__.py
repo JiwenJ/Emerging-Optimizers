@@ -100,6 +100,16 @@ class Signum(SingleMomentumOptimizer):
             weight_decay_method=weight_decay_method,
         )
 
+    @override
+    def add_param_group(self, param_group: dict[str, Any]) -> None:
+        super().add_param_group(param_group)
+        group = self.param_groups[-1]
+        if group["use_shape_scaling"]:
+            for p in group["params"]:
+                if p.dim() != 2:
+                    self.param_groups.pop()
+                    raise ValueError(f"use_shape_scaling requires 2D parameters, got shape {tuple(p.shape)}")
+
 
 @register_optimizer("laprop")
 class LaProp(TwoMomentsOptimizer):
