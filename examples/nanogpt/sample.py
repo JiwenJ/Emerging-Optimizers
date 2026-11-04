@@ -86,7 +86,7 @@ def main(argv: list[str]) -> None:
         encoding = tiktoken.get_encoding("gpt2")
         encode = lambda text: encoding.encode(text, allowed_special={"<|endoftext|>"})
         decode = encoding.decode
-    prompt = Path(FLAGS.start[5:]).read_text() if FLAGS.start.startswith("FILE:") else FLAGS.start
+    prompt = Path(FLAGS.start[5:]).read_text(encoding="utf-8") if FLAGS.start.startswith("FILE:") else FLAGS.start
     tokens = encode(prompt)
     if not tokens:
         raise app.UsageError("The prompt must contain at least one token.")
