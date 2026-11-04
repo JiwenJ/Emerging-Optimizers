@@ -70,16 +70,21 @@ def main(argv: list[str]) -> None:
         stoi, itos = meta.get("stoi"), meta.get("itos")
         if not isinstance(stoi, dict) or not isinstance(itos, dict):
             raise app.UsageError("Character metadata must include both stoi and itos dictionaries.")
-        vocab_size = model.config.vocab_size
-        if meta.get("vocab_size") != vocab_size or len(stoi) != vocab_size or set(itos) != set(range(vocab_size)):
-            raise app.UsageError("Character metadata must cover exactly the loaded model's vocabulary.")
+        vocab_size = meta.get("vocab_size")
+        if (
+            not isinstance(vocab_size, int)
+            or vocab_size > model.config.vocab_size
+            or len(stoi) != vocab_size
+            or set(itos) != set(range(vocab_size))
+        ):
+            raise app.UsageError("Character metadata must cover a prefix of the loaded model's vocabulary.")
         if any(
             not isinstance(char, str) or len(char) != 1 or not isinstance(token, int) or itos.get(token) != char
             for char, token in stoi.items()
         ):
             raise app.UsageError("Character metadata stoi and itos must be inverse character mappings.")
         encode = lambda text: [stoi[char] for char in text]
-        decode = lambda tokens: "".join(itos[token] for token in tokens)
+        decode = lambda tokens: "".join(itos.get(token, "\ufffd") for token in tokens)
     else:
         import tiktoken
 
