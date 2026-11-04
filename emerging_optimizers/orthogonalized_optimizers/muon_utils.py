@@ -96,6 +96,7 @@ _COEFFICIENT_SETS = {
 _COEFFICIENT_ITER_MODES: dict[NSCoeffT, CoeffIterMode] = {
     "polar_express": "repeat_penultimate",
     "cans": "repeat_last",
+    "aol": "repeat_last",
     "deepseekv4": "repeat_last",
 }
 
