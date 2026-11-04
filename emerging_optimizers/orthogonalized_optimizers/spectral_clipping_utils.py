@@ -72,7 +72,7 @@ def spectral_hardcap(X: torch.Tensor, beta: float = 1.0) -> torch.Tensor:
     aX = torch.add(beta * OX, X, alpha=-1)
     result = torch.add(beta * OX, X)
     result = torch.addmm(
-        result, aX, torch.mm(newton_schulz(aX, steps=8, coefficient_type="polar_express").T, OX), alpha=-1
+        result, torch.mm(aX, newton_schulz(aX, steps=8, coefficient_type="polar_express").T), OX, alpha=-1
     )
     result = result * 0.5
     if needs_transpose:
