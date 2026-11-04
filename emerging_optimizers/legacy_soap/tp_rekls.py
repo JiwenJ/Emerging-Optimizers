@@ -208,6 +208,17 @@ class TpRekls(opt_mixin.WeightDecayMixin, optim.Optimizer):
         for group in self.param_groups:
             self._init_group(group)
 
+        tp_params = [p for group in self.param_groups if group["partition_dim"] is not None for p in group["params"]]
+        if tp_params and self.tp_size > 1:
+            has_grad = torch.tensor(
+                [p.grad is not None for p in tp_params], dtype=torch.int32, device=tp_params[0].device
+            )
+            dist.all_reduce(has_grad, group=self.tp_group)
+            if not torch.all((has_grad == 0) | (has_grad == self.tp_size)):
+                raise RuntimeError(
+                    "TpRekls requires all ranks of tp_group to have gradients for the same tensor-parallel parameters."
+                )
+
         for group in self.param_groups:
             partition_dim = self._validate_partition_dim(group["partition_dim"])
             for p in group["params"]:
