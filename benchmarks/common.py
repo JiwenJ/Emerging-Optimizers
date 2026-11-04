@@ -16,18 +16,18 @@
 """Shared fixtures for Qwen3-30B-A3B benchmark scripts.
 
 Qwen3-30B-A3B is an MoE model (128 experts, 8 active) with hidden_size=2048,
-head_dim=128, 16 attention heads, 4 KV heads, intermediate_size=2048, 48 layers.
+head_dim=128, 32 attention heads, 4 KV heads, moe_intermediate_size=768, 48 layers.
 
 Linear layers per transformer block:
     Attention:
-        q_proj   (2048, 2048)  x1
+        q_proj   (4096, 2048)  x1
         k_proj   (512,  2048)  x1
         v_proj   (512,  2048)  x1
-        o_proj   (2048, 2048)  x1
+        o_proj   (2048, 4096)  x1
     MoE (per expert, 128 experts):
-        gate_proj (2048, 2048) x128
-        up_proj   (2048, 2048) x128
-        down_proj (2048, 2048) x128
+        gate_proj (768,  2048) x128
+        up_proj   (768,  2048) x128
+        down_proj (2048, 768)  x128
     Router:
         gate      (128,  2048) x1
 
@@ -54,16 +54,16 @@ ShapeCounts: TypeAlias = dict[LinearSpec, int]
 
 # Qwen3-30B-A3B linear layer shapes (out_features, in_features) per transformer block.
 QWEN3_30B_A3B_ATTN_SHAPES: list[LinearSpec] = [
-    ("q_proj", (2048, 2048)),
+    ("q_proj", (4096, 2048)),
     ("k_proj", (512, 2048)),
     ("v_proj", (512, 2048)),
-    ("o_proj", (2048, 2048)),
+    ("o_proj", (2048, 4096)),
 ]
 
 QWEN3_30B_A3B_EXPERT_SHAPES: list[LinearSpec] = [
-    ("gate_proj", (2048, 2048)),
-    ("up_proj", (2048, 2048)),
-    ("down_proj", (2048, 2048)),
+    ("gate_proj", (768, 2048)),
+    ("up_proj", (768, 2048)),
+    ("down_proj", (2048, 768)),
 ]
 
 QWEN3_30B_A3B_ROUTER_SHAPE: LinearSpec = ("router", (128, 2048))
