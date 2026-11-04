@@ -62,6 +62,7 @@ class Conv1dFlatWeights(nn.Conv1d):
             flat_weight_buffer[..., :-1].copy_(self.weight.view(self.out_channels, -1))
             flat_weight_buffer[..., -1].copy_(self.bias)
             del self.bias
+            self.register_parameter("bias", None)
             self.has_bias = True
         else:
             flat_weight_buffer.copy_(self.weight.view(self.out_channels, -1))
