@@ -195,8 +195,8 @@ class KlShampooPreconditioner(ShampooPreconditioner):
             {
                 "Q_L": torch.eye(m, device=device),
                 "Q_R": torch.eye(n, device=device),
-                # Initialize eigenvalues to one to skip KL correction for the first step.
-                # They will be overwritten immediately afterward.
+                # Placeholders: init_step replaces them with the first gradient's RMS, so the first KL update
+                # is uniform in the eigenbasis and the factors scale with |G| like the KL fixed point.
                 "eigvals_L": torch.ones(m, device=device),
                 "eigvals_R": torch.ones(n, device=device),
             }
@@ -226,6 +226,9 @@ class KlShampooPreconditioner(ShampooPreconditioner):
             grad: Gradient of the parameter on the first step.
             shampoo_beta: EMA coefficient for the Kronecker factor update.
         """
+        grad_rms = grad.square().mean().sqrt()
+        self.eigvals_pair.L.fill_(grad_rms)
+        self.eigvals_pair.R.fill_(grad_rms)
         self.update_kronecker_factors(grad, shampoo_beta)
 
     @override
