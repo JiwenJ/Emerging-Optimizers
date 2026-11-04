@@ -200,7 +200,7 @@ class Spel(OrthogonalizedOptimizer):
         Args:
             p: The updated parameter tensor.
         """
-        with utils.fp32_matmul_precision(self.fp32_matmul_prec):
+        with utils.fp32_matmul_precision("highest"):
             orth_p = self.scaled_orthogonalize_fn(p)
 
         scale = get_spel_scale_factor(p.size(-2), p.size(-1), mode=self._scale_mode)
