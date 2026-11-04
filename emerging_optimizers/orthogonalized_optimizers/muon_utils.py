@@ -206,7 +206,8 @@ def newton_schulz(
         custom_coefficient_sets: Custom coefficient sets to use for the Newton-Schulz iteration.
         eps: Small constant to avoid division by zero.
         transpose: Whether to transpose the tensor to perform whitening on the smaller dimension.
-            If None, will be determined based on the size of the tensor.
+            If None, will be determined based on the size of the tensor. Required when ``tp_group`` is given,
+            because the local shard's shape does not determine the smaller global dimension.
         tp_group: The process group for communication if input is distributed.
         use_syrk: Whether to use the Triton kernel for the Newton-Schulz iteration.
         normalize_in_double: Whether to reduce the Frobenius norm in float64. This keeps the squared
@@ -224,6 +225,8 @@ def newton_schulz(
 
     # transpose tensor to perform whitening on the smaller dimension
     if transpose is None:
+        if tp_group is not None:
+            raise ValueError("transpose must be given explicitly when tp_group is set.")
         transpose = x.size(-2) > x.size(-1)
     if transpose:
         x = x.mT
