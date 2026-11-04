@@ -447,11 +447,13 @@ def update_eigenbasis_and_exp_avgs(
             kronecker_factor_list,
         )
     else:
-        updated_eigvals_list, updated_eigenbasis_list = soap_utils.get_eigenbasis_qr(
+        updated_eigvals_list, updated_eigenbasis_list, sort_idx_list = soap_utils.get_eigenbasis_qr(
             kronecker_factor_list,
             eigenbasis_list,
             power_iter_steps,
         )
+        for dim, sort_idx in enumerate(sort_idx_list):
+            exp_avg_sq = exp_avg_sq.index_select(dim, sort_idx)
 
     # Step 3: Project exp_avg to the new eigenbasis using the updated eigenbases
     exp_avg = project_in(exp_avg, updated_eigenbasis_list)

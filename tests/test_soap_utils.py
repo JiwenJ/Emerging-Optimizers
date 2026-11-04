@@ -61,7 +61,7 @@ class SoapUtilsTest(BaseTestCase):
             torch.randn(M, M, device=self.device),
             torch.randn(N, N, device=self.device),
         ]
-        eigvals_list, Q_new_list = soap_utils.get_eigenbasis_qr(
+        eigvals_list, Q_new_list, _ = soap_utils.get_eigenbasis_qr(
             kronecker_factor_list=kronecker_factor_list,
             eigenbasis_list=eigenbasis_list,
             power_iter_steps=1,

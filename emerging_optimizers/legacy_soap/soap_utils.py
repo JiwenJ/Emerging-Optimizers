@@ -82,7 +82,7 @@ def get_eigenbasis_qr(
     kronecker_factor_list: Iterable[torch.Tensor],
     eigenbasis_list: Iterable[torch.Tensor],
     power_iter_steps: int = 1,
-) -> tuple[TensorList, TensorList]:
+) -> tuple[TensorList, TensorList, TensorList]:
     """Updates the eigenbases of the preconditioner using power iteration and QR.
 
     Args:
@@ -93,17 +93,20 @@ def get_eigenbasis_qr(
 
     Returns:
         Tuple of (list of approximate eigenvalues in descending order, updated list of orthonormal
-        eigenbases (QL and QR) with columns ordered to match).
+        eigenbases (QL and QR) with columns ordered to match, list of sort indices mapping each updated
+        column to its column in the input eigenbasis).
     """
     updated_eigenbasis_list: TensorList = []
     updated_eigvals_list: TensorList = []
+    sort_idx_list: TensorList = []
     for kronecker_factor, eigenbasis in zip(kronecker_factor_list, eigenbasis_list, strict=True):
-        eigvals, eigenbasis = eig_utils.orthogonal_iteration(
+        eigvals, eigenbasis, sort_idx = eig_utils.orthogonal_iteration(
             kronecker_factor=kronecker_factor,
             eigenbasis=eigenbasis,
             power_iter_steps=power_iter_steps,
         )
         updated_eigvals_list.append(eigvals)
         updated_eigenbasis_list.append(eigenbasis)
+        sort_idx_list.append(sort_idx)
 
-    return updated_eigvals_list, updated_eigenbasis_list
+    return updated_eigvals_list, updated_eigenbasis_list, sort_idx_list

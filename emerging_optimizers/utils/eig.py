@@ -74,7 +74,7 @@ def orthogonal_iteration(
     kronecker_factor: Tensor,
     eigenbasis: Tensor,
     power_iter_steps: int,
-) -> tuple[Tensor, Tensor]:
+) -> tuple[Tensor, Tensor, Tensor]:
     """Refines an eigenbasis via power iteration with QR re-orthogonalization.
 
     Performs ``power_iter_steps`` rounds of ``Q = QR(kronecker_factor @ Q)`` starting from
@@ -88,7 +88,7 @@ def orthogonal_iteration(
 
     Returns:
         Tuple of (approximate eigenvalues in descending order, refined eigenbasis with columns
-        ordered to match).
+        ordered to match, sort indices mapping each refined column to its column in ``eigenbasis``).
     """
     Q = eigenbasis
     for _ in range(power_iter_steps):
@@ -99,7 +99,7 @@ def orthogonal_iteration(
     with utils.fp32_matmul_precision("highest"):
         eigvals = conjugate(kronecker_factor, Q, diag=True)
     sort_idx = torch.argsort(eigvals, descending=True)
-    return eigvals[sort_idx], Q[:, sort_idx]
+    return eigvals[sort_idx], Q[:, sort_idx], sort_idx
 
 
 def conjugate(a: Tensor, p: Tensor, diag: bool = False) -> Tensor:
