@@ -12,6 +12,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import torch
+
+
 try:
     from .batched_syrk import *
     from .syrk import *
@@ -20,3 +23,7 @@ except ModuleNotFoundError as exc:
         raise
 
     HAS_TRITON_340 = False
+
+    def can_use_batched_tsyrk(a: torch.Tensor, c: torch.Tensor | None = None) -> bool:
+        """Always False: the batched syrk kernel needs Triton, which is not installed."""
+        return False
