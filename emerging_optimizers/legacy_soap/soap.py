@@ -225,6 +225,8 @@ class SOAP(opt_mixin.WeightDecayMixin, optim.Optimizer):
                         )
 
                     shampoo_beta = group["shampoo_beta"]
+                    if shampoo_beta < 0:
+                        shampoo_beta = group["betas"][1]
                     if self.correct_shampoo_beta_bias:
                         shampoo_beta = 1 - (1 - shampoo_beta) / (1 - shampoo_beta**curr_iter_1_based)
 
