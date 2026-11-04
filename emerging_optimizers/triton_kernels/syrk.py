@@ -479,7 +479,8 @@ def tsyrk_ex_small_matrix(
 
     def grid(META):
         # Start kernel with (B * (B+1) / 2) blocks.
-        assert META["TILE_M"] == META["TILE_N"], "syrk_kernel_bf16_opt requires square tiles."
+        if META["TILE_M"] != META["TILE_N"]:
+            raise ValueError("syrk_kernel_bf16_opt requires square tiles.")
         B = triton.cdiv(N, META["TILE_M"])
         return (B * (B + 1) // 2,)
 

@@ -49,7 +49,8 @@ class Conv1dFlatWeights(nn.Conv1d):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
-        assert self.padding_mode == "zeros", "Only zeros padding is supported"
+        if self.padding_mode != "zeros":
+            raise ValueError("Only zeros padding is supported")
 
         self.weight: nn.Parameter
         self.bias: torch.Tensor | None
