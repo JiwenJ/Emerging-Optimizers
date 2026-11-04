@@ -79,7 +79,8 @@ class MOP(OrthogonalizedOptimizer):
         )
 
 
-MOP.__doc__ = MOP.__doc__.format(_args_doc=_args_doc)  # type: ignore[union-attr]
+if MOP.__doc__ is not None:
+    MOP.__doc__ = MOP.__doc__.format(_args_doc=_args_doc)
 
 
 def polar_via_svd(A: torch.Tensor, return_p: bool = False) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor]:
