@@ -116,6 +116,7 @@ def main(_: Any) -> None:
         torch.cuda.synchronize()
         single_ms = (time.perf_counter() - t0) * 1000
     else:
+        run_single()
         torch.cuda.synchronize()
         t0 = time.perf_counter()
         single_results = run_single()
@@ -142,6 +143,7 @@ def main(_: Any) -> None:
         torch.cuda.synchronize()
         multi_ms = (time.perf_counter() - t0) * 1000
     else:
+        run_multi()
         torch.cuda.synchronize()
         t0 = time.perf_counter()
         multi_results = run_multi()
