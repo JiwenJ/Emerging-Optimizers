@@ -350,6 +350,8 @@ def tsyrk_ex(
     Returns:
         Output tensor of shape (N, N)
     """
+    if not HAS_TRITON_340:
+        raise RuntimeError("Triton version doesn't support tensor descriptor API. Minimum required version is 3.4.0.")
     if a.dtype != torch.bfloat16:
         raise TypeError("Input tensor must be bfloat16")
     if a.dim() != 2:
@@ -432,6 +434,8 @@ def tsyrk_ex_small_matrix(
     Returns:
         Output tensor of shape (N, N)
     """
+    if not HAS_TRITON_340:
+        raise RuntimeError("Triton version doesn't support tensor descriptor API. Minimum required version is 3.4.0.")
     if a.dtype != torch.bfloat16:
         raise TypeError("Input tensor must be bfloat16")
     if a.dim() != 2:
