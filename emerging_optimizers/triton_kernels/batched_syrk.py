@@ -252,11 +252,13 @@ def can_use_batched_tsyrk(a: torch.Tensor, c: torch.Tensor | None = None) -> boo
         return False
     if not (a.is_contiguous() or a.mT.is_contiguous()):
         return False
-    _, n, k = a.shape
+    batch, n, k = a.shape
     if n % 8 != 0 or k % 8 != 0:
         return False
+    if a.data_ptr() % 16 != 0 or batch > 65535:
+        return False
     if c is not None:
-        if c.shape != (a.shape[0], n, n) or c.dtype != a.dtype:
+        if c.shape != (a.shape[0], n, n) or c.dtype != a.dtype or c.data_ptr() % 16 != 0:
             return False
         if not (c.is_contiguous() or c.mT.is_contiguous()):
             return False
