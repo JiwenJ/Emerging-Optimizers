@@ -201,6 +201,8 @@ class OrthogonalizedOptimizer(opt_mixin.WeightDecayMixin, optim.Optimizer, Gener
                 with utils.fp32_matmul_precision(self.fp32_matmul_prec):
                     group_kwargs = {k: v for k, v in group.items() if k != "params"}
                     orth_grad = self.orthogonalize(p, grad, **group_kwargs)
+                if orth_grad.untyped_storage().data_ptr() == state["momentum_buffer"].untyped_storage().data_ptr():
+                    orth_grad = orth_grad.clone()
 
                 # perform weight update with pre and post weight update functions for subclass customization
                 self.pre_weight_update_fn_inplace(p, orth_grad)
