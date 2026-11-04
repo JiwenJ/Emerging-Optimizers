@@ -12,6 +12,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import math
+
 import torch
 
 
@@ -32,8 +34,8 @@ class RelativeUpdateHook:
     """
 
     def __init__(self, eps: float = 1e-15) -> None:
-        if eps <= 0.0:
-            raise ValueError(f"eps must be positive, got {eps}")
+        if not math.isfinite(eps) or eps <= 0.0:
+            raise ValueError(f"eps must be finite and positive, got {eps}")
         self.eps = eps
 
     def pre_weight_update_inplace(

@@ -122,7 +122,7 @@ class WeightUpdateHooksTest(parameterized.TestCase):
             error_regex="eps must be finite and positive",
         ),
         dict(hook_cls=RadialBrakeHook, hook_kwargs=dict(eps=0.0), error_regex="eps must be finite and positive"),
-        dict(hook_cls=RelativeUpdateHook, hook_kwargs=dict(eps=0.0), error_regex="eps must be positive"),
+        dict(hook_cls=RelativeUpdateHook, hook_kwargs=dict(eps=0.0), error_regex="eps must be finite and positive"),
         dict(
             hook_cls=HyperballHook,
             hook_kwargs=dict(radius=1e-4, eps=1e-3),
