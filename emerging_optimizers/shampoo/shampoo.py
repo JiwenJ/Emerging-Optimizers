@@ -126,10 +126,10 @@ class ShampooPreconditioner:
             grad: Gradient of the parameter on the first step.
             shampoo_beta: EMA coefficient for the Kronecker factor update.
         """
+        self.update_kronecker_factors(grad, shampoo_beta)
         # Changing initial kronecker factors to be epsilon along the diagonal to match the paper
         self.kronecker_factor_pair.L += self.eps * torch.eye(grad.shape[-2], device=grad.device)
         self.kronecker_factor_pair.R += self.eps * torch.eye(grad.shape[-1], device=grad.device)
-        self.update_kronecker_factors(grad, shampoo_beta)
 
     def update_kronecker_factors(self, grad: torch.Tensor, shampoo_beta: float) -> None:
         """Accumulates the gradient outer products into the Kronecker factors.
