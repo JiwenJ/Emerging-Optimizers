@@ -73,8 +73,8 @@ class RadialBrakeHook:
         pre_norm = pre_update_state
         post_norm = self._norm_or_zero(p)
         norm_delta = post_norm - pre_norm
-        outward_scale = torch.as_tensor(self.outward_scale, device=p.device, dtype=torch.float32)
-        inward_scale = torch.as_tensor(self.inward_scale, device=p.device, dtype=torch.float32)
+        outward_scale = torch.full_like(norm_delta, self.outward_scale)
+        inward_scale = torch.full_like(norm_delta, self.inward_scale)
         scale = torch.where(
             norm_delta >= self.eps,
             outward_scale,
