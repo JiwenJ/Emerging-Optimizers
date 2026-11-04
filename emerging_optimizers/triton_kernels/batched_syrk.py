@@ -342,7 +342,8 @@ def batched_tsyrk_ex(
         c_desc = None
 
     def grid(META):
-        assert META["TILE_M"] == META["TILE_N"], "batched_syrk_kernel_bf16 requires square tiles."
+        if META["TILE_M"] != META["TILE_N"]:
+            raise ValueError("batched_syrk_kernel_bf16 requires square tiles.")
         num_tiles = triton.cdiv(N, META["TILE_M"])
         return (num_tiles * (num_tiles + 1) // 2, batch)
 

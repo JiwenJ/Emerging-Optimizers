@@ -96,7 +96,8 @@ def calculate_madam_update(
     """
 
     beta1, beta2 = betas
-    assert scale_log2 // 2 == scale_log2 / 2, "scale_log2 should be an even integer"
+    if scale_log2 // 2 != scale_log2 / 2:
+        raise ValueError("scale_log2 should be an even integer")
     grad_scale = 2.0 ** (scale_log2 // 2)
 
     # First moment as usual; second moment stored scaled. Multiply before squaring
